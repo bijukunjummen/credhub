@@ -7,6 +7,7 @@ import io.pivotal.security.CredentialManagerTestContextBootstrapper;
 import io.pivotal.security.data.SecretDataService;
 import io.pivotal.security.entity.NamedPasswordSecret;
 import io.pivotal.security.entity.NamedSecret;
+import io.pivotal.security.entity.SecretEncryptionHelper;
 import io.pivotal.security.fake.FakePasswordGenerator;
 import io.pivotal.security.service.AuditLogService;
 import io.pivotal.security.service.AuditRecordParameters;
@@ -78,6 +79,9 @@ public class SecretsControllerGenerateTest {
   @Spy
   @Autowired
   SecretDataService secretDataService;
+
+  @Autowired
+  SecretEncryptionHelper secretEncryptionHelper;
 
   @Autowired
   FakePasswordGenerator fakePasswordGenerator;
@@ -161,7 +165,7 @@ public class SecretsControllerGenerateTest {
           NamedPasswordSecret newPassword = argumentCaptor.getValue();
 
           assertThat(newPassword.getValue(), equalTo(fakePasswordGenerator.getFakePassword()));
-          assertThat(newPassword.getGenerationParameters().isExcludeNumber(), equalTo(true));
+          assertThat(secretEncryptionHelper.retrieveGenerationParameters(newPassword).isExcludeNumber(), equalTo(true));
         });
 
         it("persists an audit entry", () -> {
@@ -200,7 +204,7 @@ public class SecretsControllerGenerateTest {
 
           NamedPasswordSecret newPassword = argumentCaptor.getValue();
 
-          assertThat(newPassword.getGenerationParameters().isExcludeNumber(), equalTo(true));
+          assertThat(secretEncryptionHelper.retrieveGenerationParameters(newPassword).isExcludeNumber(), equalTo(true));
           assertThat(newPassword.getValue(), equalTo(fakePasswordGenerator.getFakePassword()));
         });
 

@@ -8,7 +8,9 @@ import io.pivotal.security.CredentialManagerApp;
 import io.pivotal.security.CredentialManagerTestContextBootstrapper;
 import io.pivotal.security.controller.v1.PasswordGenerationParameters;
 import io.pivotal.security.controller.v1.RequestParameters;
+import io.pivotal.security.data.SecretDataService;
 import io.pivotal.security.entity.NamedPasswordSecret;
+import io.pivotal.security.entity.SecretEncryptionHelper;
 import io.pivotal.security.generator.SecretGenerator;
 import io.pivotal.security.view.ParameterizedValidationException;
 import io.pivotal.security.view.StringSecret;
@@ -35,7 +37,7 @@ import static org.mockito.Mockito.when;
 @RunWith(Spectrum.class)
 @SpringApplicationConfiguration(classes = CredentialManagerApp.class)
 @BootstrapWith(CredentialManagerTestContextBootstrapper.class)
-@ActiveProfiles("unit-test")
+@ActiveProfiles({"unit-test", "FakeEncryptionService"})
 public class PasswordGeneratorRequestTranslatorTest {
 
   @Autowired
@@ -44,8 +46,15 @@ public class PasswordGeneratorRequestTranslatorTest {
   @Mock
   SecretGenerator secretGenerator;
 
+  @Mock
+  SecretDataService secretDataService;
+
+  @Autowired
+  SecretEncryptionHelper secretEncryptionHelper;
+
+  @Autowired
   @InjectMocks
-  private PasswordGeneratorRequestTranslator subject;
+  PasswordGeneratorRequestTranslator subject;
 
   {
     wireAndUnwire(this);
@@ -86,7 +95,6 @@ public class PasswordGeneratorRequestTranslatorTest {
 
     it("can populate an entity from JSON", () -> {
       final NamedPasswordSecret secret = new NamedPasswordSecret("abc");
-
       String requestJson = "{" +
           "  \"type\":\"password\"," +
           "  \"parameters\":{" +
@@ -95,13 +103,15 @@ public class PasswordGeneratorRequestTranslatorTest {
           "  }" +
           "}";
       DocumentContext parsed = jsonPath.parse(requestJson);
-      subject.populateEntityFromJson(secret, parsed);
-      assertThat(secret.getValue(), notNullValue());
-      assertThat(secret.getGenerationParameters().getLength(), equalTo(11));
-      assertThat(secret.getGenerationParameters().isExcludeLower(), equalTo(false));
-      assertThat(secret.getGenerationParameters().isExcludeUpper(), equalTo(true));
-    });
 
+      subject.populateEntityFromJson(secret, parsed);
+
+      assertThat(secret.getValue(), notNullValue());
+      PasswordGenerationParameters generationParameters = secretEncryptionHelper.retrieveGenerationParameters(secret);
+      assertThat(generationParameters.getLength(), equalTo(11));
+      assertThat(generationParameters.isExcludeLower(), equalTo(false));
+      assertThat(generationParameters.isExcludeUpper(), equalTo(true));
+    });
 
     it("can populate a hex-only entity from JSON", () -> {
       final NamedPasswordSecret secret = new NamedPasswordSecret("abc");
@@ -116,18 +126,17 @@ public class PasswordGeneratorRequestTranslatorTest {
       DocumentContext parsed = jsonPath.parse(requestJson);
       subject.populateEntityFromJson(secret, parsed);
       assertThat(secret.getValue(), notNullValue());
-      assertThat(secret.getGenerationParameters().getLength(), equalTo(11));
-      assertThat(secret.getGenerationParameters().isOnlyHex(), equalTo(true));
+      PasswordGenerationParameters generationParameters = secretEncryptionHelper.retrieveGenerationParameters(secret);
+      assertThat(generationParameters.getLength(), equalTo(11));
+      assertThat(generationParameters.isOnlyHex(), equalTo(true));
     });
 
     it("can regenerate using the existing entity and json", () -> {
       PasswordGenerationParameters generationParameters = new PasswordGenerationParameters();
-
-      NamedPasswordSecret secret = new NamedPasswordSecret("test", "old-password", generationParameters);
+      NamedPasswordSecret secret = new NamedPasswordSecret("test", "old-password");
+      secretEncryptionHelper.refreshEncryptedGenerationParameters(secret, generationParameters);
 
       subject.populateEntityFromJson(secret, jsonPath.parse("{\"regenerate\":true}"));
-
-      when(secretGenerator.generateSecret(generationParameters)).thenReturn(new StringSecret("password", "my-password"));
 
       assertThat(secret.getValue(), equalTo("my-password"));
     });

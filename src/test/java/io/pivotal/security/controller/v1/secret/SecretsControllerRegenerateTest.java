@@ -6,6 +6,7 @@ import io.pivotal.security.CredentialManagerTestContextBootstrapper;
 import io.pivotal.security.controller.v1.PasswordGenerationParameters;
 import io.pivotal.security.data.SecretDataService;
 import io.pivotal.security.entity.NamedPasswordSecret;
+import io.pivotal.security.entity.SecretEncryptionHelper;
 import io.pivotal.security.fake.FakePasswordGenerator;
 import io.pivotal.security.service.AuditLogService;
 import io.pivotal.security.service.AuditRecordParameters;
@@ -83,6 +84,9 @@ public class SecretsControllerRegenerateTest {
   @Autowired
   FakePasswordGenerator fakePasswordGenerator;
 
+  @Autowired
+  SecretEncryptionHelper secretEncryptionHelper;
+
   private MockMvc mockMvc;
 
   private Instant frozenTime = Instant.ofEpochSecond(1400011001L);
@@ -110,7 +114,7 @@ public class SecretsControllerRegenerateTest {
         PasswordGenerationParameters generationParameters = new PasswordGenerationParameters();
 
         generationParameters.setExcludeNumber(true);
-        originalSecret.setGenerationParameters(generationParameters);
+        secretEncryptionHelper.refreshEncryptedGenerationParameters(originalSecret, generationParameters);
 
         doReturn(originalSecret).when(secretDataService).findMostRecent("my-password");
 
@@ -145,7 +149,7 @@ public class SecretsControllerRegenerateTest {
         NamedPasswordSecret newPassword = argumentCaptor.getValue();
 
         assertThat(newPassword.getValue(), equalTo(fakePasswordGenerator.getFakePassword()));
-        assertThat(newPassword.getGenerationParameters().isExcludeNumber(), equalTo(true));
+        assertThat(secretEncryptionHelper.retrieveGenerationParameters(newPassword).isExcludeNumber(), equalTo(true));
       });
 
       it("persists an audit entry", () -> {

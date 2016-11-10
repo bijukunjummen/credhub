@@ -2,6 +2,7 @@ package io.pivotal.security.data;
 
 import io.pivotal.security.entity.NamedSecret;
 import io.pivotal.security.entity.NamedSecretImpl;
+import io.pivotal.security.entity.SecretEncryptionHelper;
 import io.pivotal.security.repository.SecretRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;

@@ -3,6 +3,7 @@ package io.pivotal.security.entity;
 import io.pivotal.security.controller.v1.PasswordGenerationParameters;
 import io.pivotal.security.view.SecretKind;
 
+import javax.naming.OperationNotSupportedException;
 import javax.persistence.Column;
 import javax.persistence.DiscriminatorValue;
 import javax.persistence.Entity;
@@ -33,11 +34,6 @@ public class NamedPasswordSecret extends NamedStringSecret<NamedPasswordSecret> 
     super(name, value);
   }
 
-  public NamedPasswordSecret(String name, String value, PasswordGenerationParameters generationParameters) {
-    super(name, value);
-    setGenerationParameters(generationParameters);
-  }
-
   public byte[] getEncryptedGenerationParameters() {
     return encryptedGenerationParameters;
   }
@@ -53,15 +49,6 @@ public class NamedPasswordSecret extends NamedStringSecret<NamedPasswordSecret> 
 
   public NamedPasswordSecret setParametersNonce(byte[] parametersNonce) {
     this.parametersNonce = parametersNonce;
-    return this;
-  }
-
-  public PasswordGenerationParameters getGenerationParameters() {
-    return SecretEncryptionHelperProvider.getInstance().retrieveGenerationParameters(this);
-  }
-
-  public NamedPasswordSecret setGenerationParameters(PasswordGenerationParameters generationParameters) {
-    SecretEncryptionHelperProvider.getInstance().refreshEncryptedGenerationParameters(this, generationParameters);
     return this;
   }
 

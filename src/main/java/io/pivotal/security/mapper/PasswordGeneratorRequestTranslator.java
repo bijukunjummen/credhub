@@ -3,6 +3,7 @@ package io.pivotal.security.mapper;
 import com.jayway.jsonpath.DocumentContext;
 import io.pivotal.security.controller.v1.PasswordGenerationParameters;
 import io.pivotal.security.entity.NamedPasswordSecret;
+import io.pivotal.security.entity.SecretEncryptionHelper;
 import io.pivotal.security.generator.SecretGenerator;
 import io.pivotal.security.view.ParameterizedValidationException;
 import io.pivotal.security.view.StringSecret;
@@ -21,6 +22,9 @@ public class PasswordGeneratorRequestTranslator implements RequestTranslator<Nam
   @Autowired
   SecretGenerator<PasswordGenerationParameters, StringSecret> stringSecretGenerator;
 
+  @Autowired
+  SecretEncryptionHelper secretEncryptionHelper;
+
   @Override
   public PasswordGenerationParameters validRequestParameters(DocumentContext parsed, NamedPasswordSecret entity) {
     PasswordGenerationParameters secretParameters;
@@ -31,7 +35,7 @@ public class PasswordGeneratorRequestTranslator implements RequestTranslator<Nam
       if (values.size() > 1) {
         throw new ParameterizedValidationException("error.invalid_regenerate_parameters");
       }
-      secretParameters = entity.getGenerationParameters();
+      secretParameters = secretEncryptionHelper.retrieveGenerationParameters(entity);
       if (secretParameters == null) {
         throw new ParameterizedValidationException("error.cannot_regenerate_non_generated_credentials");
       }
@@ -58,11 +62,11 @@ public class PasswordGeneratorRequestTranslator implements RequestTranslator<Nam
   }
 
   @Override
-  public void populateEntityFromJson(NamedPasswordSecret entity, DocumentContext documentContext) {
-    PasswordGenerationParameters requestParameters = validRequestParameters(documentContext, entity);
+  public void populateEntityFromJson(NamedPasswordSecret secretEntity, DocumentContext documentContext) {
+    PasswordGenerationParameters requestParameters = validRequestParameters(documentContext, secretEntity);
     StringSecret secret = stringSecretGenerator.generateSecret(requestParameters);
-    entity.setValue(secret.getValue());
-    entity.setGenerationParameters(requestParameters);
+    secretEntity.setValue(secret.getValue());
+    secretEncryptionHelper.refreshEncryptedGenerationParameters(secretEntity, requestParameters);
   }
 
   @Override

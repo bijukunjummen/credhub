@@ -3,6 +3,7 @@ package io.pivotal.security.entity;
 import com.greghaskins.spectrum.Spectrum;
 import io.pivotal.security.CredentialManagerApp;
 import io.pivotal.security.CredentialManagerTestContextBootstrapper;
+import io.pivotal.security.controller.v1.PasswordGenerationParameters;
 import io.pivotal.security.fake.FakeEncryptionService;
 import io.pivotal.security.service.EncryptionService;
 import org.junit.runner.RunWith;
@@ -16,6 +17,7 @@ import static com.greghaskins.spectrum.Spectrum.describe;
 import static com.greghaskins.spectrum.Spectrum.it;
 import static io.pivotal.security.helper.SpectrumHelper.cleanUpAfterTests;
 import static io.pivotal.security.helper.SpectrumHelper.wireAndUnwire;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertNotNull;
@@ -31,6 +33,8 @@ public class SecretEncryptionHelperTest {
 
   @Autowired
   EncryptionService encryptionService;
+
+  private PasswordGenerationParameters generationParameters;
 
   {
     wireAndUnwire(this);
@@ -76,6 +80,46 @@ public class SecretEncryptionHelperTest {
         String clearTextValue = subject.retrieveClearTextValue(valueContainer);
 
         assertThat(clearTextValue, equalTo("some fake secret"));
+      });
+    });
+
+    describe("#getGenerationParameters", () -> {
+      beforeEach(() -> {
+        generationParameters = new PasswordGenerationParameters()
+            .setExcludeLower(true)
+            .setExcludeSpecial(true)
+            .setLength(10);
+      });
+
+      it("only encrypts the generationParameters once for the same secret parameters", () -> {
+        NamedPasswordSecret passwordSecret = new NamedPasswordSecret("my-password");
+        subject.refreshEncryptedGenerationParameters(passwordSecret, generationParameters);
+        assertThat(((FakeEncryptionService) encryptionService).getEncryptionCount(), equalTo(1));
+
+        PasswordGenerationParameters generationParameters2 = new PasswordGenerationParameters()
+            .setExcludeLower(true)
+            .setExcludeSpecial(true)
+            .setLength(10);
+        subject.refreshEncryptedGenerationParameters(passwordSecret, generationParameters2);
+        assertThat(((FakeEncryptionService) encryptionService).getEncryptionCount(), equalTo(1));
+      });
+
+      it("sets the parametersNonce and the encryptedGenerationParameters", () -> {
+        NamedPasswordSecret passwordSecret = new NamedPasswordSecret("my-password", "password");
+        subject.refreshEncryptedGenerationParameters(passwordSecret, generationParameters);
+        assertThat(subject.retrieveGenerationParameters(passwordSecret), notNullValue());
+        assertThat(passwordSecret.getParametersNonce(), notNullValue());
+      });
+
+      it("can decrypt values", () -> {
+        NamedPasswordSecret passwordSecret = new NamedPasswordSecret("my-password", "length10pw");
+
+        subject.refreshEncryptedGenerationParameters(passwordSecret, generationParameters);
+
+        PasswordGenerationParameters retrievedGenerationParameters = subject.retrieveGenerationParameters(passwordSecret);
+        assertThat(retrievedGenerationParameters.getLength(), equalTo(10));
+        assertThat(retrievedGenerationParameters.isExcludeLower(), equalTo(true));
+        assertThat(retrievedGenerationParameters.isExcludeUpper(), equalTo(false));
       });
     });
   }

@@ -39,14 +39,12 @@ public class NamedPasswordSecretTest {
   SecretDataService secretDataService;
 
   @Autowired
-  ObjectMapper objectMapper;
-
-  @Autowired
   EncryptionService encryptionService;
 
-  NamedPasswordSecret subject;
+  @Autowired
+  SecretEncryptionHelper secretEncryptionHelper;
 
-  PasswordGenerationParameters generationParameters;
+  NamedPasswordSecret subject;
 
   {
     wireAndUnwire(this);
@@ -54,11 +52,6 @@ public class NamedPasswordSecretTest {
     beforeEach(() -> {
       subject = new NamedPasswordSecret("Foo");
       ((FakeEncryptionService) encryptionService).resetEncryptionCount();
-
-      generationParameters = new PasswordGenerationParameters();
-      generationParameters.setExcludeLower(true);
-      generationParameters.setExcludeSpecial(true);
-      generationParameters.setLength(10);
     });
 
     it("returns type password", () -> {
@@ -111,32 +104,6 @@ public class NamedPasswordSecretTest {
         secretDataService.save(subject);
         assertThat(subject.getUuid().toString().length(), equalTo(36));
       });
-
-      it("only encrypts the generationParameters once for the same secret", () -> {
-        subject.setGenerationParameters(generationParameters);
-        assertThat(((FakeEncryptionService) encryptionService).getEncryptionCount(), equalTo(1));
-
-        PasswordGenerationParameters generationParameters2 = new PasswordGenerationParameters();
-        generationParameters2.setExcludeLower(true);
-        generationParameters2.setExcludeSpecial(true);
-        generationParameters2.setLength(10);
-        subject.setGenerationParameters(generationParameters2);
-        assertThat(((FakeEncryptionService) encryptionService).getEncryptionCount(), equalTo(1));
-      });
-
-      it("sets the parametersNonce and the encryptedGenerationParameters", () -> {
-        subject.setGenerationParameters(generationParameters);
-        assertThat(subject.getEncryptedGenerationParameters(), notNullValue());
-        assertThat(subject.getParametersNonce(), notNullValue());
-      });
-
-      it("can decrypt values", () -> {
-        subject.setValue("length10pw");
-        subject.setGenerationParameters(generationParameters);
-        assertThat(subject.getGenerationParameters().getLength(), equalTo(10));
-        assertThat(subject.getGenerationParameters().isExcludeLower(), equalTo(true));
-        assertThat(subject.getGenerationParameters().isExcludeUpper(), equalTo(false));
-      });
     });
 
     describe("#copyInto", () -> {
@@ -149,14 +116,15 @@ public class NamedPasswordSecretTest {
         parameters.setExcludeLower(true);
         parameters.setExcludeUpper(false);
 
-        subject = new NamedPasswordSecret("foo", "value", parameters);
+        subject = new NamedPasswordSecret("foo", "value");
+        secretEncryptionHelper.refreshEncryptedGenerationParameters(subject, parameters);
         subject.setUuid(uuid);
         subject.setUpdatedAt(frozenTime);
 
         NamedPasswordSecret copy = new NamedPasswordSecret();
         subject.copyInto(copy);
 
-        PasswordGenerationParameters copyParameters = copy.getGenerationParameters();
+        PasswordGenerationParameters copyParameters = secretEncryptionHelper.retrieveGenerationParameters(copy);
 
         assertThat(copy.getName(), equalTo("foo"));
         assertThat(copy.getValue(), equalTo("value"));
